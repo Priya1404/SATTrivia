@@ -28,16 +28,30 @@ struct Player: Identifiable, Codable {
         self.name = name
         self.score = score
     }
+    
+    mutating func updateScore() {
+        score += 1
+    }
+}
+
+struct Players: Codable {
+    var player1: Player?
+    var player2: Player?
+    
+    init(player1: Player?, player2: Player?) {
+        self.player1 = player1
+        self.player2 = player2
+    }
 }
 
 struct RoundResult: Identifiable, Codable {
     let id: UUID
-    let player1Result: PlayerResult
-    let player2Result: PlayerResult
+    let player1Result: PlayerResult?
+    let player2Result: PlayerResult?
     let winner: UUID?
     let question: Question
     
-    init(id: UUID = UUID(), player1Result: PlayerResult, player2Result: PlayerResult, winner: UUID?, question: Question) {
+    init(id: UUID = UUID(), player1Result: PlayerResult?, player2Result: PlayerResult?, winner: UUID?, question: Question) {
         self.id = id
         self.player1Result = player1Result
         self.player2Result = player2Result
@@ -47,10 +61,10 @@ struct RoundResult: Identifiable, Codable {
 }
 
 struct PlayerResult: Codable {
-    let playerId: UUID
-    let answer: Int
-    let time: TimeInterval
-    let isCorrect: Bool
+    var playerId: UUID
+    var answer: Int
+    var time: TimeInterval
+    var isCorrect: Bool
 }
 
 enum GameStatus: String, Codable {
@@ -60,74 +74,121 @@ enum GameStatus: String, Codable {
 }
 
 class GameState: ObservableObject {
-    @Published var currentRound: Int = 1
-    @Published var rounds: [RoundResult] = []
+    @Published var players: Players
     @Published var currentQuestion: Question?
-    @Published var activePlayer: UUID?
-    @Published var gameStatus: GameStatus = .waiting
-    @Published var players: (player1: Player?, player2: Player?)
+    @Published var rounds: [RoundResult]
+    @Published var gameStatus: GameStatus
     @Published var player1Result: PlayerResult?
     @Published var player2Result: PlayerResult?
+    @Published var currentRound: Int
+    @Published var currentPlayerTurn: UUID?
+    @Published var showRoundResults: Bool
+    
+    private var player2Answers: [UUID: PlayerResult] = [:]
     
     init() {
-        self.players = (nil, nil)
+        self.players = Players(player1: nil, player2: nil)
+        self.rounds = []
+        self.gameStatus = .waiting
+        self.currentRound = 1
+        self.currentPlayerTurn = nil
+        self.showRoundResults = false
     }
     
     func startNewGame(player1: Player, player2: Player) {
-        self.players = (player1, player2)
-        self.currentRound = 1
-        self.rounds = []
-        self.gameStatus = .inProgress
-        self.activePlayer = player1.id
-        self.player1Result = nil
-        self.player2Result = nil
+        players = Players(player1: player1, player2: player2)
+        rounds = []
+        gameStatus = .inProgress
+        player1Result = nil
+        player2Result = nil
+        player2Answers = [:]
+        currentRound = 1
+        currentPlayerTurn = player1.id // Player 1 starts first
+        showRoundResults = false
+        
+        // Start with first question
+        currentQuestion = QuestionBank.getRandomQuestion()
     }
     
-    func endRound(player1Result: PlayerResult, player2Result: PlayerResult) {
+    func getPlayer2Result(for question: Question) -> PlayerResult? {
+        return player2Answers[question.id]
+    }
+    
+    func endPlayerTurn(playerResult: PlayerResult) {
+        if playerResult.playerId == players.player1?.id {
+            player1Result = playerResult
+            currentPlayerTurn = players.player2?.id
+        } else if playerResult.playerId == players.player2?.id {
+            player2Result = playerResult
+            endRound()
+        }
+    }
+    
+    func endRound() {
+        guard let question = currentQuestion,
+              let player1Result = player1Result,
+              let player2Result = player2Result else { return }
+        
+        // Determine winner
         let winner: UUID?
         if player1Result.isCorrect && !player2Result.isCorrect {
             winner = player1Result.playerId
         } else if !player1Result.isCorrect && player2Result.isCorrect {
             winner = player2Result.playerId
-        } else if player1Result.isCorrect && player2Result.isCorrect {
-            winner = player1Result.time < player2Result.time ? player1Result.playerId : player2Result.playerId
         } else {
             winner = nil
         }
         
-        let roundResult = RoundResult(
+        let round = RoundResult(
+            id: UUID(),
             player1Result: player1Result,
             player2Result: player2Result,
             winner: winner,
-            question: currentQuestion!
+            question: question
         )
         
-        rounds.append(roundResult)
+        rounds.append(round)
         
-        if let winner = winner {
-            if winner == players.player1?.id {
-                players.player1?.score += 1
-            } else {
-                players.player2?.score += 1
+        // Update scores
+        if var player1 = players.player1, player1Result.playerId == player1.id {
+            if player1Result.isCorrect {
+                player1.updateScore()
+                players.player1 = player1
             }
         }
         
-        if players.player1?.score == 3 || players.player2?.score == 3 {
+        if var player2 = players.player2, player2Result.playerId == player2.id {
+            if player2Result.isCorrect {
+                player2.updateScore()
+                players.player2 = player2
+            }
+        }
+        
+        // Check for game end or start next round
+        if currentRound >= 3 {
             gameStatus = .finished
         } else {
             currentRound += 1
-            activePlayer = currentRound % 2 == 0 ? players.player2?.id : players.player1?.id
+            currentQuestion = QuestionBank.getRandomQuestion()
+            self.player1Result = nil
+            self.player2Result = nil
+            showRoundResults = false
+            
+            // Always start with Player 1 in each round
+            currentPlayerTurn = players.player1?.id
         }
     }
     
     func reset() {
-        currentRound = 1
-        rounds = []
+        players = Players(player1: nil, player2: nil)
         currentQuestion = nil
-        activePlayer = nil
+        rounds = []
         gameStatus = .waiting
-        players = (nil, nil)
         player1Result = nil
         player2Result = nil
+        player2Answers = [:]
+        currentRound = 1
+        currentPlayerTurn = nil
+        showRoundResults = false
     }
 } 

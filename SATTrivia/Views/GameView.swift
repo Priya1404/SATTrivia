@@ -2,16 +2,18 @@ import SwiftUI
 
 struct GameView: View {
     @StateObject private var gameState = GameState()
-    @State private var playerName = ""
+    @State private var player1Name = ""
+    @State private var player2Name = ""
     @State private var startTime: Date?
     @State private var selectedAnswer: Int?
-    @State private var showingResults = false
-    @State private var showLosingStreak = false
-    @State private var consecutiveLosses = 0
+    @State private var isTimerRunning = false
+    @State private var showPassPhoneAlert = false
+    @State private var showAnswerFeedback = false
+    @State private var currentAnswerResult: PlayerResult?
     
     var body: some View {
         ZStack {
-            Color.pastelBackground
+            Color("Background")
                 .ignoresSafeArea()
             
             VStack {
@@ -21,10 +23,11 @@ struct GameView: View {
                 case .inProgress:
                     gamePlayView
                 case .finished:
-                    if let player = gameState.players.player1 {
+                    if let player1 = gameState.players.player1,
+                       let player2 = gameState.players.player2 {
                         GameOverView(
-                            winner: player,
-                            loser: Player(name: "Computer"),
+                            winner: player1.score >= 2 ? player1 : player2,
+                            loser: player1.score >= 2 ? player2 : player1,
                             rounds: gameState.rounds,
                             onPlayAgain: resetGame
                         )
@@ -32,12 +35,23 @@ struct GameView: View {
                 }
             }
         }
-        .alert("Keep Going!", isPresented: $showLosingStreak) {
-            Button("I Can Do This! 💪") {
-                showLosingStreak = false
+        .alert("Pass the Phone", isPresented: $showPassPhoneAlert) {
+            Button("OK") {
+                startTimer()
             }
         } message: {
-            Text("Don't give up! Every great mathematician started somewhere. Keep trying!")
+            if let currentPlayer = gameState.currentPlayerTurn == gameState.players.player1?.id ?
+                gameState.players.player1 : gameState.players.player2 {
+                Text("Please pass the phone to \(currentPlayer.name)")
+            }
+        }
+        .sheet(isPresented: $showAnswerFeedback) {
+            if let result = currentAnswerResult {
+                AnswerFeedbackView(result: result) {
+                    showAnswerFeedback = false
+                    showPassPhoneAlert = true
+                }
+            }
         }
     }
     
@@ -46,10 +60,14 @@ struct GameView: View {
             Text("SAT Math Trivia")
                 .font(.largeTitle)
                 .fontWeight(.bold)
-                .foregroundColor(.pastelBlue)
+                .foregroundColor(.blue)
             
             VStack(spacing: 15) {
-                TextField("Your Name", text: $playerName)
+                TextField("Player 1 Name", text: $player1Name)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+                
+                TextField("Player 2 Name", text: $player2Name)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding(.horizontal)
             }
@@ -61,12 +79,12 @@ struct GameView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(
-                        playerName.isEmpty ?
-                        Color.pastelGray : Color.pastelBlue
+                        player1Name.isEmpty || player2Name.isEmpty ?
+                        Color.gray : Color.blue
                     )
                     .cornerRadius(10)
             }
-            .disabled(playerName.isEmpty)
+            .disabled(player1Name.isEmpty || player2Name.isEmpty)
             .padding(.horizontal)
         }
         .padding()
@@ -74,18 +92,37 @@ struct GameView: View {
     
     private var gamePlayView: some View {
         VStack(spacing: 20) {
+            // Round and Player Turn Indicator
+            VStack(spacing: 10) {
+                Text("Round \(gameState.currentRound)")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                if let currentPlayer = gameState.currentPlayerTurn == gameState.players.player1?.id ?
+                    gameState.players.player1 : gameState.players.player2 {
+                    Text("\(currentPlayer.name)'s Turn")
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(10)
+                }
+            }
+            .padding(.vertical)
+            
             // Score display
             HStack {
                 PlayerScoreView(
                     name: gameState.players.player1?.name ?? "",
                     score: gameState.players.player1?.score ?? 0,
-                    isActive: true
+                    isActive: gameState.currentPlayerTurn == gameState.players.player1?.id
                 )
                 
                 PlayerScoreView(
-                    name: "Computer",
+                    name: gameState.players.player2?.name ?? "",
                     score: gameState.players.player2?.score ?? 0,
-                    isActive: false
+                    isActive: gameState.currentPlayerTurn == gameState.players.player2?.id
                 )
             }
             
@@ -105,97 +142,79 @@ struct GameView: View {
                 }
                 .padding()
             }
-            
-            // Timer display
-            if let startTime = startTime {
-                TimerView(startTime: startTime)
-            }
         }
         .padding()
-        .alert("Round Results", isPresented: $showingResults) {
-            Button("Continue") {
-                startNextRound()
-            }
-        } message: {
-            if let round = gameState.rounds.last {
-                RoundResultView(round: round)
-            }
-        }
     }
     
     private func startGame() {
-        let player = Player(name: playerName)
-        let computer = Player(name: "Computer")
-        gameState.startNewGame(player1: player, player2: computer)
-        consecutiveLosses = 0
-        startNextRound()
+        let player1 = Player(name: player1Name)
+        let player2 = Player(name: player2Name)
+        gameState.startNewGame(player1: player1, player2: player2)
+        showPassPhoneAlert = true
     }
     
-    private func startNextRound() {
-        gameState.currentQuestion = QuestionBank.getRandomQuestion()
+    private func startTimer() {
         startTime = Date()
-        selectedAnswer = nil
+        isTimerRunning = true
     }
     
     private func selectAnswer(_ index: Int) {
-        selectedAnswer = index
+        selectedAnswer = nil
+        isTimerRunning = false
         let time = Date().timeIntervalSince(startTime ?? Date())
         
-        if let player = gameState.players.player1 {
+        if let currentPlayer = gameState.currentPlayerTurn == gameState.players.player1?.id ?
+            gameState.players.player1 : gameState.players.player2 {
+            
             let isCorrect = index == gameState.currentQuestion?.correctAnswer
             let result = PlayerResult(
-                playerId: player.id,
+                playerId: currentPlayer.id,
                 answer: index,
                 time: time,
                 isCorrect: isCorrect
             )
             
-            // Generate computer's answer
-            let computerResult = generateComputerResult(question: gameState.currentQuestion!)
-            
-            gameState.player1Result = result
-            gameState.player2Result = computerResult
-            
-            if let player1Result = gameState.player1Result,
-               let player2Result = gameState.player2Result {
-                gameState.endRound(
-                    player1Result: player1Result,
-                    player2Result: player2Result
-                )
-                
-                // Handle losing streak
-                if !isCorrect {
-                    consecutiveLosses += 1
-                    if consecutiveLosses >= 3 {
-                        showLosingStreak = true
-                    }
-                } else {
-                    consecutiveLosses = 0
-                }
-                
-                showingResults = true
-            }
+            currentAnswerResult = result
+            gameState.endPlayerTurn(playerResult: result)
+            showAnswerFeedback = true
         }
-    }
-    
-    private func generateComputerResult(question: Question) -> PlayerResult {
-        // Computer has 70% chance of getting it right
-        let isCorrect = Double.random(in: 0...1) < 0.7
-        let answer = isCorrect ? question.correctAnswer : Int.random(in: 0..<question.options.count)
-        let time = Double.random(in: 2...5) // Computer takes 2-5 seconds
-        
-        return PlayerResult(
-            playerId: gameState.players.player2!.id,
-            answer: answer,
-            time: time,
-            isCorrect: isCorrect
-        )
     }
     
     private func resetGame() {
         gameState.reset()
-        playerName = ""
-        consecutiveLosses = 0
+        player1Name = ""
+        player2Name = ""
+    }
+}
+
+struct AnswerFeedbackView: View {
+    let result: PlayerResult
+    let onContinue: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text(result.isCorrect ? "Correct! 🎉" : "Incorrect 😢")
+                .font(.title)
+                .fontWeight(.bold)
+                .foregroundColor(result.isCorrect ? .green : .red)
+            
+            Text("Time: \(String(format: "%.1f", result.time))s")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            Button(action: onContinue) {
+                Text("Continue")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(10)
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.8))
+        .cornerRadius(20)
     }
 }
 
@@ -213,7 +232,7 @@ struct PlayerScoreView: View {
                 .fontWeight(.bold)
         }
         .padding()
-        .background(isActive ? Color.pastelBlue.opacity(0.2) : Color.clear)
+        .background(isActive ? Color.blue.opacity(0.2) : Color.clear)
         .cornerRadius(10)
     }
 }
@@ -259,19 +278,19 @@ struct AnswerButton: View {
     
     private var backgroundColor: Color {
         if isSelected {
-            return .pastelBlue
+            return .blue
         } else if isHovered {
-            return .pastelGray.opacity(0.8)
+            return .gray.opacity(0.3)
         } else {
-            return .pastelGray.opacity(0.6)
+            return .gray.opacity(0.2)
         }
     }
     
     private var shadowColor: Color {
         if isSelected {
-            return .pastelBlue.opacity(0.5)
+            return .blue.opacity(0.5)
         } else if isHovered {
-            return .pastelGray.opacity(0.3)
+            return .gray.opacity(0.3)
         } else {
             return .clear
         }
@@ -298,10 +317,14 @@ struct RoundResultView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Player 1: \(round.player1Result.isCorrect ? "Correct" : "Incorrect") in \(String(format: "%.1f", round.player1Result.time))s")
-            Text("Player 2: \(round.player2Result.isCorrect ? "Correct" : "Incorrect") in \(String(format: "%.1f", round.player2Result.time))s")
+            if let player1Result = round.player1Result {
+                Text("Player 1: \(player1Result.isCorrect ? "Correct" : "Incorrect") in \(String(format: "%.1f", player1Result.time))s")
+            }
+            if let player2Result = round.player2Result {
+                Text("Player 2: \(player2Result.isCorrect ? "Correct" : "Incorrect") in \(String(format: "%.1f", player2Result.time))s")
+            }
             if let winner = round.winner {
-                Text("Winner: \(winner == round.player1Result.playerId ? "Player 1" : "Player 2")")
+                Text("Winner: \(winner == round.player1Result?.playerId ? "Player 1" : "Player 2")")
             } else {
                 Text("Tie!")
             }
