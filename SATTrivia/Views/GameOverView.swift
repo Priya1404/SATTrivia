@@ -90,7 +90,29 @@ struct GameOverView: View {
                     if showLogs {
                         VStack(spacing: 15) {
                             ForEach(Array(rounds.enumerated()), id: \.element.id) { index, round in
-                                RoundLogView(round: round, roundNumber: index + 1)
+                                VStack(spacing: 10) {
+                                    Text("Round \(index + 1)")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    
+                                    if let player1Result = round.player1Result {
+                                        RoundLogView(
+                                            roundNumber: index + 1,
+                                            result: player1Result,
+                                            isWinner: round.winner == player1Result.playerId,
+                                            playerName: winner.id == player1Result.playerId ? winner.name : loser.name
+                                        )
+                                    }
+                                    
+                                    if let player2Result = round.player2Result {
+                                        RoundLogView(
+                                            roundNumber: index + 1,
+                                            result: player2Result,
+                                            isWinner: round.winner == player2Result.playerId,
+                                            playerName: winner.id == player2Result.playerId ? winner.name : loser.name
+                                        )
+                                    }
+                                }
                             }
                         }
                         .padding()
@@ -174,39 +196,30 @@ struct GifView: View {
 }
 
 struct RoundLogView: View {
-    let round: RoundResult
     let roundNumber: Int
+    let result: PlayerResult
+    let isWinner: Bool
+    let playerName: String
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Round \(roundNumber)")
-                .font(.headline)
-                .foregroundColor(.pastelBlue)
-            
-            Text(round.question.text)
-                .font(.subheadline)
-                .foregroundColor(.gray)
-            
             HStack {
-                Text("Player 1: \(((round.player1Result?.isCorrect) != nil) ? "✓" : "✗")")
-                    .foregroundColor(((round.player1Result?.isCorrect) != nil) ? .pastelGreen : .pastelRed)
-                Text("\(String(format: "%.1f", round.player1Result?.time ?? 0.0))s")
-                    .foregroundColor(.gray)
+                Text(playerName)
+                    .font(.headline)
+                    .foregroundColor(.white)
                 
                 Spacer()
                 
-                Text("Player 2: \(((round.player2Result?.isCorrect) != nil) ? "✓" : "✗")")
-                    .foregroundColor(((round.player2Result?.isCorrect) != nil) ? .pastelGreen : .pastelRed)
-                Text("\(String(format: "%.1f", round.player2Result?.time ?? 0.0))s")
-                    .foregroundColor(.gray)
+                Text("\(String(format: "%.1f", result.time))s")
+                    .foregroundColor(.white)
             }
+            
+            Text(result.isCorrect ? "✅ Correct" : "❌ Incorrect")
+                .foregroundColor(result.isCorrect ? .green : .red)
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white)
-                .shadow(radius: 2)
-        )
+        .background(Color.blue.opacity(0.2))
+        .cornerRadius(10)
     }
 }
 
