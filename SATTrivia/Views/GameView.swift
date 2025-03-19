@@ -2,16 +2,16 @@ import SwiftUI
 
 struct GameView: View {
     @StateObject private var gameState = GameState()
-    @State private var player1Name = ""
-    @State private var player2Name = ""
+    @State private var playerName = ""
     @State private var startTime: Date?
     @State private var selectedAnswer: Int?
     @State private var showingResults = false
-    @State private var isPlayer1Turn = true
+    @State private var showLosingStreak = false
+    @State private var consecutiveLosses = 0
     
     var body: some View {
         ZStack {
-            Color("Background")
+            Color.pastelBackground
                 .ignoresSafeArea()
             
             VStack {
@@ -21,9 +21,23 @@ struct GameView: View {
                 case .inProgress:
                     gamePlayView
                 case .finished:
-                    gameOverView
+                    if let player = gameState.players.player1 {
+                        GameOverView(
+                            winner: player,
+                            loser: Player(name: "Computer"),
+                            rounds: gameState.rounds,
+                            onPlayAgain: resetGame
+                        )
+                    }
                 }
             }
+        }
+        .alert("Keep Going!", isPresented: $showLosingStreak) {
+            Button("I Can Do This! 💪") {
+                showLosingStreak = false
+            }
+        } message: {
+            Text("Don't give up! Every great mathematician started somewhere. Keep trying!")
         }
     }
     
@@ -32,13 +46,10 @@ struct GameView: View {
             Text("SAT Math Trivia")
                 .font(.largeTitle)
                 .fontWeight(.bold)
+                .foregroundColor(.pastelBlue)
             
             VStack(spacing: 15) {
-                TextField("Player 1 Name", text: $player1Name)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.horizontal)
-                
-                TextField("Player 2 Name", text: $player2Name)
+                TextField("Your Name", text: $playerName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding(.horizontal)
             }
@@ -50,12 +61,12 @@ struct GameView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(
-                        player1Name.isEmpty || player2Name.isEmpty ?
-                        Color.gray : Color.blue
+                        playerName.isEmpty ?
+                        Color.pastelGray : Color.pastelBlue
                     )
                     .cornerRadius(10)
             }
-            .disabled(player1Name.isEmpty || player2Name.isEmpty)
+            .disabled(playerName.isEmpty)
             .padding(.horizontal)
         }
         .padding()
@@ -68,13 +79,13 @@ struct GameView: View {
                 PlayerScoreView(
                     name: gameState.players.player1?.name ?? "",
                     score: gameState.players.player1?.score ?? 0,
-                    isActive: isPlayer1Turn
+                    isActive: true
                 )
                 
                 PlayerScoreView(
-                    name: gameState.players.player2?.name ?? "",
+                    name: "Computer",
                     score: gameState.players.player2?.score ?? 0,
-                    isActive: !isPlayer1Turn
+                    isActive: false
                 )
             }
             
@@ -99,11 +110,6 @@ struct GameView: View {
             if let startTime = startTime {
                 TimerView(startTime: startTime)
             }
-            
-            // Current player indicator
-            Text("\(isPlayer1Turn ? gameState.players.player1?.name ?? "" : gameState.players.player2?.name ?? "")'s turn")
-                .font(.headline)
-                .foregroundColor(.blue)
         }
         .padding()
         .alert("Round Results", isPresented: $showingResults) {
@@ -117,42 +123,11 @@ struct GameView: View {
         }
     }
     
-    private var gameOverView: some View {
-        VStack(spacing: 20) {
-            Text("Game Over!")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            if let winner = gameState.players.player1?.score == 3 ? gameState.players.player1 : gameState.players.player2 {
-                Text("\(winner.name) wins!")
-                    .font(.title)
-            }
-            
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(gameState.rounds) { round in
-                    RoundSummaryView(round: round)
-                }
-            }
-            .padding()
-            
-            Button("Play Again") {
-                resetGame()
-            }
-            .font(.headline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .cornerRadius(10)
-        }
-        .padding()
-    }
-    
     private func startGame() {
-        let player1 = Player(name: player1Name)
-        let player2 = Player(name: player2Name)
-        gameState.startNewGame(player1: player1, player2: player2)
-        isPlayer1Turn = true
+        let player = Player(name: playerName)
+        let computer = Player(name: "Computer")
+        gameState.startNewGame(player1: player, player2: computer)
+        consecutiveLosses = 0
         startNextRound()
     }
     
@@ -160,16 +135,13 @@ struct GameView: View {
         gameState.currentQuestion = QuestionBank.getRandomQuestion()
         startTime = Date()
         selectedAnswer = nil
-        isPlayer1Turn = true
     }
     
     private func selectAnswer(_ index: Int) {
         selectedAnswer = index
         let time = Date().timeIntervalSince(startTime ?? Date())
         
-        let currentPlayer = isPlayer1Turn ? gameState.players.player1 : gameState.players.player2
-        
-        if let player = currentPlayer {
+        if let player = gameState.players.player1 {
             let isCorrect = index == gameState.currentQuestion?.correctAnswer
             let result = PlayerResult(
                 playerId: player.id,
@@ -178,28 +150,52 @@ struct GameView: View {
                 isCorrect: isCorrect
             )
             
-            if isPlayer1Turn {
-                gameState.player1Result = result
-                isPlayer1Turn = false
-            } else {
-                gameState.player2Result = result
+            // Generate computer's answer
+            let computerResult = generateComputerResult(question: gameState.currentQuestion!)
+            
+            gameState.player1Result = result
+            gameState.player2Result = computerResult
+            
+            if let player1Result = gameState.player1Result,
+               let player2Result = gameState.player2Result {
+                gameState.endRound(
+                    player1Result: player1Result,
+                    player2Result: player2Result
+                )
                 
-                if let player1Result = gameState.player1Result {
-                    gameState.endRound(
-                        player1Result: player1Result,
-                        player2Result: result
-                    )
-                    showingResults = true
+                // Handle losing streak
+                if !isCorrect {
+                    consecutiveLosses += 1
+                    if consecutiveLosses >= 3 {
+                        showLosingStreak = true
+                    }
+                } else {
+                    consecutiveLosses = 0
                 }
+                
+                showingResults = true
             }
         }
     }
     
+    private func generateComputerResult(question: Question) -> PlayerResult {
+        // Computer has 70% chance of getting it right
+        let isCorrect = Double.random(in: 0...1) < 0.7
+        let answer = isCorrect ? question.correctAnswer : Int.random(in: 0..<question.options.count)
+        let time = Double.random(in: 2...5) // Computer takes 2-5 seconds
+        
+        return PlayerResult(
+            playerId: gameState.players.player2!.id,
+            answer: answer,
+            time: time,
+            isCorrect: isCorrect
+        )
+    }
+    
     private func resetGame() {
         gameState.reset()
-        player1Name = ""
-        player2Name = ""
-        isPlayer1Turn = true
+        playerName = ""
+        consecutiveLosses = 0
     }
 }
 
@@ -217,7 +213,7 @@ struct PlayerScoreView: View {
                 .fontWeight(.bold)
         }
         .padding()
-        .background(isActive ? Color.blue.opacity(0.2) : Color.clear)
+        .background(isActive ? Color.pastelBlue.opacity(0.2) : Color.clear)
         .cornerRadius(10)
     }
 }
@@ -238,6 +234,8 @@ struct AnswerButton: View {
     let isSelected: Bool
     let action: () -> Void
     
+    @State private var isHovered = false
+    
     var body: some View {
         Button(action: action) {
             Text(text)
@@ -245,8 +243,37 @@ struct AnswerButton: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isSelected ? Color.blue : Color.gray)
-                .cornerRadius(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(backgroundColor)
+                        .shadow(color: shadowColor, radius: isHovered ? 5 : 2)
+                )
+                .scaleEffect(isHovered ? 1.02 : 1.0)
+                .animation(.spring(response: 0.3), value: isHovered)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+    
+    private var backgroundColor: Color {
+        if isSelected {
+            return .pastelBlue
+        } else if isHovered {
+            return .pastelGray.opacity(0.8)
+        } else {
+            return .pastelGray.opacity(0.6)
+        }
+    }
+    
+    private var shadowColor: Color {
+        if isSelected {
+            return .pastelBlue.opacity(0.5)
+        } else if isHovered {
+            return .pastelGray.opacity(0.3)
+        } else {
+            return .clear
         }
     }
 }
@@ -278,21 +305,6 @@ struct RoundResultView: View {
             } else {
                 Text("Tie!")
             }
-        }
-    }
-}
-
-struct RoundSummaryView: View {
-    let round: RoundResult
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Round \(round.id)")
-                .font(.headline)
-            Text(round.question.text)
-                .font(.subheadline)
-            Text("Player 1: \(round.player1Result.isCorrect ? "✓" : "✗") \(String(format: "%.1f", round.player1Result.time))s")
-            Text("Player 2: \(round.player2Result.isCorrect ? "✓" : "✗") \(String(format: "%.1f", round.player2Result.time))s")
         }
     }
 }
