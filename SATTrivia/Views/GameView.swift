@@ -9,6 +9,7 @@ struct GameView: View {
     @State private var isTimerRunning = false
     @State private var showPassPhoneAlert = false
     @State private var showAnswerFeedback = false
+    @State private var showRoundResult = false
     @State private var currentAnswerResult: PlayerResult?
     
     var body: some View {
@@ -49,6 +50,20 @@ struct GameView: View {
             if let result = currentAnswerResult {
                 AnswerFeedbackView(result: result) {
                     showAnswerFeedback = false
+                    showPassPhoneAlert = true
+                }
+            }
+        }
+        .sheet(isPresented: $showRoundResult) {
+            if let player1 = gameState.players.player1,
+               let player2 = gameState.players.player2,
+               let lastRound = gameState.rounds.last {
+                RoundResultView(
+                    round: lastRound,
+                    player1: player1,
+                    player2: player2
+                ) {
+                    showRoundResult = false
                     showPassPhoneAlert = true
                 }
             }
@@ -176,7 +191,12 @@ struct GameView: View {
             
             currentAnswerResult = result
             gameState.endPlayerTurn(playerResult: result)
-            showAnswerFeedback = true
+            
+            if gameState.currentPlayerTurn == gameState.players.player2?.id {
+                showAnswerFeedback = true
+            } else {
+                showRoundResult = true
+            }
         }
     }
     
@@ -314,21 +334,110 @@ struct TimerView: View {
 
 struct RoundResultView: View {
     let round: RoundResult
+    let player1: Player
+    let player2: Player
+    let onContinue: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 25) {
+            Text("Round \(round.id)")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+            
+            // Player Results
+            VStack(spacing: 20) {
+                if let player1Result = round.player1Result {
+                    PlayerRoundResultRow(
+                        name: player1.name,
+                        isCorrect: player1Result.isCorrect,
+                        time: player1Result.time,
+                        isWinner: round.winner == player1Result.playerId
+                    )
+                }
+                
+                if let player2Result = round.player2Result {
+                    PlayerRoundResultRow(
+                        name: player2.name,
+                        isCorrect: player2Result.isCorrect,
+                        time: player2Result.time,
+                        isWinner: round.winner == player2Result.playerId
+                    )
+                }
+            }
+            
+            // Current Score
+            HStack(spacing: 30) {
+                VStack {
+                    Text(player1.name)
+                        .font(.headline)
+                    Text("\(player1.score)")
+                        .font(.title)
+                        .foregroundColor(.green)
+                }
+                
+                VStack {
+                    Text(player2.name)
+                        .font(.headline)
+                    Text("\(player2.score)")
+                        .font(.title)
+                        .foregroundColor(.red)
+                }
+            }
+            .padding()
+            .background(Color.blue.opacity(0.2))
+            .cornerRadius(15)
+            
+            Button(action: onContinue) {
+                Text("Continue to Next Round")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(10)
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.8))
+        .cornerRadius(20)
+    }
+}
+
+struct PlayerRoundResultRow: View {
+    let name: String
+    let isCorrect: Bool
+    let time: TimeInterval
+    let isWinner: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let player1Result = round.player1Result {
-                Text("Player 1: \(player1Result.isCorrect ? "Correct" : "Incorrect") in \(String(format: "%.1f", player1Result.time))s")
+            HStack {
+                Text(name)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Text("\(String(format: "%.1f", time))s")
+                    .foregroundColor(.white)
             }
-            if let player2Result = round.player2Result {
-                Text("Player 2: \(player2Result.isCorrect ? "Correct" : "Incorrect") in \(String(format: "%.1f", player2Result.time))s")
-            }
-            if let winner = round.winner {
-                Text("Winner: \(winner == round.player1Result?.playerId ? "Player 1" : "Player 2")")
-            } else {
-                Text("Tie!")
+            
+            HStack {
+                Text(isCorrect ? "✅ Correct" : "❌ Incorrect")
+                    .foregroundColor(isCorrect ? .green : .red)
+                
+                Spacer()
+                
+                if isWinner {
+                    Text("👑 Winner")
+                        .foregroundColor(.yellow)
+                }
             }
         }
+        .padding()
+        .background(Color.blue.opacity(0.2))
+        .cornerRadius(10)
     }
 }
 
