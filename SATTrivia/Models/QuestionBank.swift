@@ -1,3 +1,10 @@
+//
+//  QuestionBank.swift
+//  SATTrivia
+//
+//  Created by Priya Srivastava on 20/03/25.
+//
+
 import Foundation
 
 struct QuestionBank {

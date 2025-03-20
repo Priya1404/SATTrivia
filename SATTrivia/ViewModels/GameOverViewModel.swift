@@ -1,3 +1,10 @@
+//
+//  GameOverViewModel.swift
+//  SATTrivia
+//
+//  Created by Priya Srivastava on 20/03/25.
+//
+
 import SwiftUI
 
 class GameOverViewModel: ObservableObject {

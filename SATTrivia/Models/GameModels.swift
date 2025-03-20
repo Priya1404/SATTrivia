@@ -1,64 +1,11 @@
+//
+//  GameModels.swift
+//  SATTrivia
+//
+//  Created by Priya Srivastava on 20/03/25.
+//
+
 import Foundation
-
-struct Question: Identifiable, Codable {
-    let id: UUID
-    let text: String
-    let options: [String]
-    let correctAnswer: Int
-    let explanation: String
-    
-    init(id: UUID = UUID(), text: String, options: [String], correctAnswer: Int, explanation: String) {
-        self.id = id
-        self.text = text
-        self.options = options
-        self.correctAnswer = correctAnswer
-        self.explanation = explanation
-    }
-}
-
-struct Player: Identifiable, Codable {
-    let id: UUID
-    var name: String
-    var score: Int
-    var currentAnswer: Int?
-    var answerTime: TimeInterval?
-    
-    init(id: UUID = UUID(), name: String, score: Int = 0) {
-        self.id = id
-        self.name = name
-        self.score = score
-    }
-    
-    mutating func updateScore() {
-        score += 1
-    }
-}
-
-struct Players: Codable {
-    var player1: Player?
-    var player2: Player?
-    
-    init(player1: Player?, player2: Player?) {
-        self.player1 = player1
-        self.player2 = player2
-    }
-}
-
-struct RoundResult: Identifiable, Codable {
-    let id: UUID
-    let player1Result: PlayerResult?
-    let player2Result: PlayerResult?
-    let winner: UUID?
-    let question: Question
-    
-    init(id: UUID = UUID(), player1Result: PlayerResult?, player2Result: PlayerResult?, winner: UUID?, question: Question) {
-        self.id = id
-        self.player1Result = player1Result
-        self.player2Result = player2Result
-        self.winner = winner
-        self.question = question
-    }
-}
 
 struct PlayerResult: Codable {
     var playerId: UUID
@@ -203,5 +150,30 @@ class GameState: ObservableObject {
         currentRound = 1
         currentPlayerTurn = nil
         showRoundResults = false
+    }
+    
+    func updateScore(for playerId: UUID, isCorrect: Bool) {
+        if playerId == players.player1?.id {
+            if isCorrect {
+                players.player1?.score += 1
+            }
+        } else if playerId == players.player2?.id {
+            if isCorrect {
+                players.player2?.score += 1
+            }
+        }
+    }
+    
+    func nextPlayer() {
+        if currentPlayerTurn == players.player1?.id {
+            currentPlayerTurn = players.player2?.id
+        } else if currentPlayerTurn == players.player2?.id {
+            currentPlayerTurn = players.player1?.id
+            currentRound += 1
+            
+            if currentRound > 5 {
+                gameStatus = .finished
+            }
+        }
     }
 } 
