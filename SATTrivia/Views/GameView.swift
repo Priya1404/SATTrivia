@@ -61,11 +61,13 @@ struct GameView: View {
                 RoundResultView(
                     round: lastRound,
                     player1: player1,
-                    player2: player2
-                ) {
-                    showRoundResult = false
-                    showPassPhoneAlert = true
-                }
+                    player2: player2,
+                    roundNumber: gameState.rounds.count,
+                    onContinue: {
+                        showRoundResult = false
+                        showPassPhoneAlert = true
+                    }
+                )
             }
         }
     }
@@ -336,14 +338,15 @@ struct RoundResultView: View {
     let round: RoundResult
     let player1: Player
     let player2: Player
+    let roundNumber: Int
     let onContinue: () -> Void
     
     var body: some View {
         VStack(spacing: 25) {
-            Text("Round \(round.id)")
+            Text("Round \(roundNumber)")
                 .font(.largeTitle)
                 .fontWeight(.bold)
-                .foregroundColor(.white)
+                .foregroundColor(.black)
             
             // Player Results
             VStack(spacing: 20) {
@@ -385,7 +388,7 @@ struct RoundResultView: View {
                 }
             }
             .padding()
-            .background(Color.blue.opacity(0.2))
+            .background(Color.pastelBlue.opacity(0.3))
             .cornerRadius(15)
             
             Button(action: onContinue) {
@@ -394,12 +397,12 @@ struct RoundResultView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.blue)
+                    .background(Color.pastelGreen)
                     .cornerRadius(10)
             }
         }
         .padding()
-        .background(Color.black.opacity(0.8))
+        .background(Color.pastelBackground)
         .cornerRadius(20)
     }
 }
@@ -415,12 +418,12 @@ struct PlayerRoundResultRow: View {
             HStack {
                 Text(name)
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(.black)
                 
                 Spacer()
                 
                 Text("\(String(format: "%.1f", time))s")
-                    .foregroundColor(.white)
+                    .foregroundColor(.black)
             }
             
             HStack {
@@ -436,7 +439,7 @@ struct PlayerRoundResultRow: View {
             }
         }
         .padding()
-        .background(Color.blue.opacity(0.2))
+        .background(Color.pastelBlue.opacity(0.3))
         .cornerRadius(10)
     }
 }
