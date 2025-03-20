@@ -31,15 +31,16 @@ struct GameView: View {
                                 winner: winner!,
                                 loser: loser!,
                                 rounds: gameState.rounds,
-                                onPlayAgain: resetGame
+                                isTie: gameState.getGameWinner() == nil,
+                                resetGame: resetGame
                             )
                         } else {
                             GameOverView(
                                 winner: player1,
                                 loser: player2,
                                 rounds: gameState.rounds,
-                                onPlayAgain: resetGame,
-                                isTie: true
+                                isTie: true,
+                                resetGame: resetGame
                             )
                         }
                     }
