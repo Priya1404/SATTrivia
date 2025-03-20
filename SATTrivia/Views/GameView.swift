@@ -48,10 +48,16 @@ struct GameView: View {
         }
         .sheet(isPresented: $showAnswerFeedback) {
             if let result = currentAnswerResult {
-                AnswerFeedbackView(result: result) {
-                    showAnswerFeedback = false
-                    showPassPhoneAlert = true
-                }
+                AnswerFeedbackView(
+                    result: result,
+                    onContinue: {
+                        showAnswerFeedback = false
+                        if gameState.gameStatus == .inProgress {
+                            showPassPhoneAlert = true
+                        }
+                    },
+                    gameState: gameState
+                )
             }
         }
         .sheet(isPresented: $showRoundResult) {
@@ -65,7 +71,9 @@ struct GameView: View {
                     roundNumber: gameState.rounds.count,
                     onContinue: {
                         showRoundResult = false
-                        showPassPhoneAlert = true
+                        if gameState.gameStatus == .inProgress {
+                            showPassPhoneAlert = true
+                        }
                     }
                 )
             }
@@ -212,6 +220,7 @@ struct GameView: View {
 struct AnswerFeedbackView: View {
     let result: PlayerResult
     let onContinue: () -> Void
+    @ObservedObject var gameState: GameState
     
     var body: some View {
         VStack(spacing: 20) {
@@ -281,7 +290,7 @@ struct AnswerButton: View {
         Button(action: action) {
             Text(text)
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(
@@ -397,7 +406,7 @@ struct RoundResultView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.pastelGreen)
+                    .background(Color.green)
                     .cornerRadius(10)
             }
         }
