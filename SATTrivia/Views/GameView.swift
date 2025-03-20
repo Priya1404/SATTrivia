@@ -26,12 +26,22 @@ struct GameView: View {
                 case .finished:
                     if let player1 = gameState.players.player1,
                        let player2 = gameState.players.player2 {
-                        GameOverView(
-                            winner: player1.score >= 2 ? player1 : player2,
-                            loser: player1.score >= 2 ? player2 : player1,
-                            rounds: gameState.rounds,
-                            onPlayAgain: resetGame
-                        )
+                        if let (winner, loser) = gameState.getGameWinner() {
+                            GameOverView(
+                                winner: winner!,
+                                loser: loser!,
+                                rounds: gameState.rounds,
+                                onPlayAgain: resetGame
+                            )
+                        } else {
+                            GameOverView(
+                                winner: player1,
+                                loser: player2,
+                                rounds: gameState.rounds,
+                                onPlayAgain: resetGame,
+                                isTie: true
+                            )
+                        }
                     }
                 }
             }
@@ -376,6 +386,19 @@ struct RoundResultView: View {
                         isWinner: round.winner == player2Result.playerId
                     )
                 }
+            }
+            
+            // Round Winner or Tie
+            if let winner = round.winner {
+                Text(winner == player1.id ? "\(player1.name) Wins the Round!" : "\(player2.name) Wins the Round!")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.green)
+            } else {
+                Text("Round Tied!")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.orange)
             }
             
             // Current Score

@@ -5,6 +5,7 @@ struct GameOverView: View {
     let loser: Player
     let rounds: [RoundResult]
     let onPlayAgain: () -> Void
+    var isTie: Bool = false
     
     @State private var showConfetti = false
     @State private var showLogs = false
@@ -24,9 +25,15 @@ struct GameOverView: View {
                             .font(.largeTitle)
                             .fontWeight(.bold)
                         
-                        Text("\(winner.name) Wins!")
-                            .font(.title)
-                            .foregroundColor(.green)
+                        if isTie {
+                            Text("It's a Tie! 🤝")
+                                .font(.title)
+                                .foregroundColor(.orange)
+                        } else {
+                            Text("\(winner.name) Wins!")
+                                .font(.title)
+                                .foregroundColor(.green)
+                        }
                         
                         Text("🏆")
                             .font(.system(size: 60))
@@ -43,8 +50,8 @@ struct GameOverView: View {
                     HStack(spacing: 30) {
                         PlayerResultCard(
                             player: winner,
-                            isWinner: true,
-                            emoji: "👑",
+                            isWinner: !isTie,
+                            emoji: isTie ? "🤝" : "👑",
                             showGif: $showWinnerGif
                         )
                         

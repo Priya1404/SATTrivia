@@ -136,7 +136,7 @@ class GameState: ObservableObject {
         } else if !player1Result.isCorrect && player2Result.isCorrect {
             winner = player2Result.playerId
         } else {
-            winner = nil
+            winner = nil // Tie
         }
         
         let round = RoundResult(
@@ -176,6 +176,19 @@ class GameState: ObservableObject {
             
             // Always start with Player 1 in each round
             currentPlayerTurn = players.player1?.id
+        }
+    }
+    
+    func getGameWinner() -> (winner: Player?, loser: Player?)? {
+        guard let player1 = players.player1,
+              let player2 = players.player2 else { return nil }
+        
+        if player1.score > player2.score {
+            return (player1, player2)
+        } else if player2.score > player1.score {
+            return (player2, player1)
+        } else {
+            return nil // Tie
         }
     }
     
